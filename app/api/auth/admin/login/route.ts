@@ -1,42 +1,52 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import getDB from '../../../../lib/db';
 
 // This should match the key in your .env file
 const ADMIN_KEY = process.env.ADMIN_REGISTRATION_KEY;
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { adminKey } = body;
+    const { username, password } = await request.json();
 
-    console.log('Admin login attempt');
-
-    // Validate admin key
-    if (!adminKey) {
-      console.log('No admin key provided');
+    if (!username || !password) {
       return NextResponse.json(
-        { message: 'Admin key is required' },
+        { success: false, message: 'Username and password are required' },
         { status: 400 }
       );
     }
 
-    // Compare with the admin key from environment variables
-    if (adminKey !== ADMIN_KEY) {
-      console.log('Invalid admin key');
+    const db = await getDB();
+    const admin = await db.get('SELECT * FROM admins WHERE username = ?', username);
+
+    if (!admin) {
       return NextResponse.json(
-        { message: 'Invalid admin key' },
+        { success: false, message: 'Invalid username or password' },
         { status: 401 }
       );
     }
 
-    console.log('Admin login successful');
-    return NextResponse.json(
-      { message: 'Login successful' },
-      { status: 200 }
-    );
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid username or password' },
+        { status: 401 }
+      );
+    }
+
+    // Remove password from response
+    const { password: _, ...adminWithoutPassword } = admin;
+
+    return NextResponse.json({
+      success: true,
+      data: adminWithoutPassword
+    });
+
   } catch (error) {
     console.error('Admin login error:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -17,6 +17,7 @@ export default function Signup() {
     employeeLevel: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [showOTP, setShowOTP] = useState(false);
@@ -30,7 +31,7 @@ export default function Signup() {
     if (password.length >= 8) strength += 25;
     if (/[A-Z]/.test(password)) strength += 25;
     if (/[a-z]/.test(password)) strength += 25;
-    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength += 25;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 25;
     setPasswordStrength(strength);
     return strength === 100;
   };
@@ -48,29 +49,50 @@ export default function Signup() {
     }
 
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
-      // First, create the department
-      const signupResponse = await fetch('/api/auth/signup', {
+      const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          departmentId: formData.departmentId,
+          departmentName: formData.departmentName,
+          email: formData.email,
+          password: formData.password,
+          sectionName: formData.sectionName,
+          employeeLevel: formData.employeeLevel,
+        }),
       });
 
-      const signupData = await signupResponse.json();
+      const data = await response.json();
 
-      if (signupResponse.ok) {
-        // After successful signup, send OTP
-        await handleSendOTP();
-      } else {
-        setError(signupData.message || 'Signup failed');
+      if (!response.ok) {
+        throw new Error(data.message || 'Something went wrong');
       }
-    } catch (err) {
-      console.error('Signup error:', err);
-      setError('An error occurred during signup');
+
+      setSuccess(data.message);
+      // Clear form
+      setFormData({
+        departmentId: '',
+        departmentName: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        sectionName: '',
+        employeeLevel: '',
+      });
+      setPasswordStrength(0);
+
+      // Redirect to login page after 3 seconds
+      setTimeout(() => {
+        router.push('/login');
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -165,6 +187,17 @@ export default function Signup() {
             className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6"
           >
             {error}
+          </motion.div>
+        )}
+
+        {success && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-green-900/50 border border-green-500 text-green-200 px-4 py-3 rounded-lg mb-6"
+          >
+            {success}
+            <p className="text-sm mt-2">Redirecting to login page...</p>
           </motion.div>
         )}
 

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '../../../lib/db';
-import Department from '../../../models/Department';
 import bcrypt from 'bcryptjs';
+import { findDepartmentById } from '../../../models/Department';
 
 export async function POST(request: Request) {
   try {
     const { departmentId, password } = await request.json();
 
+    // Validate required fields
     if (!departmentId || !password) {
       return NextResponse.json(
         { message: 'Department ID and password are required' },
@@ -14,38 +14,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // Connect to database
-    await connectDB();
-
-    // Find department by departmentId
-    const department = await Department.findOne({ departmentId });
-
+    // Find department by ID
+    const department = await findDepartmentById(departmentId);
     if (!department) {
       return NextResponse.json(
-        { message: 'Invalid credentials' },
+        { message: 'Invalid department ID or password' },
         { status: 401 }
       );
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, department.password);
-
     if (!isValidPassword) {
       return NextResponse.json(
-        { message: 'Invalid credentials' },
+        { message: 'Invalid department ID or password' },
         { status: 401 }
       );
     }
 
-    // Return department data (excluding password)
-    const departmentData = {
-      departmentId: department.departmentId,
-      departmentName: department.departmentName,
-      email: department.email,
-      sectionName: department.sectionName,
-    };
+    // Remove password from response
+    const { password: _, ...departmentWithoutPassword } = department;
 
-    return NextResponse.json(departmentData);
+    return NextResponse.json({
+      success: true,
+      message: 'Login successful',
+      data: departmentWithoutPassword
+    });
+
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
@@ -53,4 +48,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

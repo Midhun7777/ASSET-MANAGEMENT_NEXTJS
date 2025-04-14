@@ -1,112 +1,71 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';
-import Admin from '@/app/models/Admin';
 import bcrypt from 'bcryptjs';
-
-// This should be stored securely in environment variables
-const ADMIN_REGISTRATION_KEY = 'your-secure-admin-key';
+import getDB from '../../../../lib/db';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('Received admin signup request:', { 
-      adminId: body.adminId,
-      name: body.name,
-      email: body.email 
-    });
-
-    const { adminId, name, email, password, adminKey } = body;
+    const { username, password, email, role, adminKey } = body;
 
     // Validate required fields
-    if (!adminId || !name || !email || !password || !adminKey) {
-      console.log('Missing required fields');
+    if (!username || !password || !email || !role || !adminKey) {
       return NextResponse.json(
-        { message: 'All fields are required' },
+        { success: false, message: 'All fields are required' },
         { status: 400 }
       );
     }
 
-    // Validate admin key
-    if (adminKey !== ADMIN_REGISTRATION_KEY) {
-      console.log('Invalid admin key');
+    // Verify admin key
+    const validAdminKey = process.env.ADMIN_REGISTRATION_KEY || 'admin-key-2024';
+    if (adminKey !== validAdminKey) {
       return NextResponse.json(
-        { message: 'Invalid admin registration key' },
+        { success: false, message: 'Invalid admin key' },
         { status: 401 }
       );
     }
 
-    // Connect to database
-    try {
-      await connectDB();
-      console.log('Connected to database successfully');
-    } catch (dbError) {
-      console.error('Database connection error:', dbError);
-      return NextResponse.json(
-        { message: 'Database connection failed' },
-        { status: 500 }
-      );
-    }
+    const db = await getDB();
 
-    // Check if admin ID already exists
-    const existingAdmin = await Admin.findOne({ adminId });
-    console.log('Existing admin check:', existingAdmin ? 'Found' : 'Not found');
-    
-    if (existingAdmin) {
-      console.log('Admin ID already exists');
+    // Check if username already exists
+    const existingUsername = await db.get('SELECT username FROM admins WHERE username = ?', username);
+    if (existingUsername) {
       return NextResponse.json(
-        { message: 'Admin ID already exists' },
+        { success: false, message: 'Username already exists' },
         { status: 400 }
       );
     }
 
     // Check if email already exists
-    const existingEmail = await Admin.findOne({ email });
-    console.log('Existing email check:', existingEmail ? 'Found' : 'Not found');
-    
+    const existingEmail = await db.get('SELECT email FROM admins WHERE email = ?', email);
     if (existingEmail) {
-      console.log('Email already exists');
       return NextResponse.json(
-        { message: 'Email already exists' },
+        { success: false, message: 'Email already exists' },
         { status: 400 }
       );
     }
 
     // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    console.log('Password hashed successfully');
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new admin
-    try {
-      const admin = await Admin.create({
-        adminId,
-        name,
-        email,
-        password: hashedPassword,
-      });
-      console.log('Admin created successfully:', {
-        adminId: admin.adminId,
-        name: admin.name,
-        email: admin.email
-      });
+    // Generate admin ID
+    const adminId = 'ADM' + Date.now().toString();
 
-      // Return admin data (excluding password)
-      return NextResponse.json({
-        adminId: admin.adminId,
-        name: admin.name,
-        email: admin.email,
-      }, { status: 201 });
-    } catch (createError) {
-      console.error('Error creating admin:', createError);
-      return NextResponse.json(
-        { message: 'Failed to create admin account' },
-        { status: 500 }
-      );
-    }
+    // Create admin
+    await db.run(
+      'INSERT INTO admins (adminId, username, password, email, role) VALUES (?, ?, ?, ?, ?)',
+      [adminId, username, hashedPassword, email, role]
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Admin created successfully',
+      data: { adminId, username, email, role }
+    }, { status: 201 });
+
   } catch (error) {
     console.error('Admin signup error:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { success: false, message: 'Failed to create admin' },
       { status: 500 }
     );
   }

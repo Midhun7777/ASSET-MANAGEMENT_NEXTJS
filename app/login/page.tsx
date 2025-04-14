@@ -18,7 +18,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
+  
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -30,18 +30,23 @@ export default function Login() {
           password: formData.password,
         }),
       });
-
+  
       const data = await response.json();
-
+      console.log('Login response:', {
+        status: response.status,
+        ok: response.ok,
+        data: data
+      });
+  
       if (response.ok) {
-        localStorage.setItem('user', JSON.stringify(data));
+        localStorage.setItem('user', JSON.stringify(data.data));
         router.push('/dashboard');
       } else {
-        setError(data.message || 'Login failed');
+        setError(data.message || 'Invalid department ID or password');
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('An error occurred during login');
+      setError('An error occurred during login. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +73,7 @@ export default function Login() {
             animate={{ opacity: 1 }}
             className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6"
           >
-            {error === 'Email and password are required' ? 'Department ID and password are required' : error}
+            {error}
           </motion.div>
         )}
 
@@ -142,7 +147,7 @@ export default function Login() {
 
         <div className="mt-8 text-center space-y-4">
           <p className="text-gray-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
               Sign up
             </Link>
@@ -156,4 +161,4 @@ export default function Login() {
       </motion.div>
     </div>
   );
-} 
+}
